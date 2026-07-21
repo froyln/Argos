@@ -8,6 +8,8 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+<img width="480" height="270" alt="image" src="https://github.com/user-attachments/assets/a16f457c-032e-4888-b279-9863bab68866" />
+
 </div>
 
 ---
