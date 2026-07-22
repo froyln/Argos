@@ -20,10 +20,23 @@ async function purgeUserMessages(guild, user) {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     const textChannels = guild.channels.cache.filter(c => c.isTextBased());
 
+    // Safely get bot member to avoid cache misses
+    const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
+    if (!botMember) {
+        console.error(`[ANTI-SPAM ERROR] Could not fetch bot member in guild ${guild.name}.`);
+        return;
+    }
+
     for (const [_, channel] of textChannels) {
         try {
-            const botPermissions = channel.permissionsFor(guild.members.me);
-            if (!botPermissions || !botPermissions.has(PermissionsBitField.Flags.ManageMessages)) continue;
+            const botPermissions = channel.permissionsFor(botMember);
+            
+            // Check essential permissions per channel
+            if (!botPermissions || !botPermissions.has(PermissionsBitField.Flags.ViewChannel)) continue;
+            if (!botPermissions.has(PermissionsBitField.Flags.ManageMessages)) {
+                console.log(`[DEBUG PERMISSIONS] Missing 'Manage Messages' in channel #${channel.name} (${guild.name}).`);
+                continue;
+            }
 
             const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
             if (!messages) continue;
@@ -33,17 +46,23 @@ async function purgeUserMessages(guild, user) {
             );
 
             if (toDelete.size > 0) {
-                await channel.bulkDelete(toDelete, true).catch(() => null);
+                await channel.bulkDelete(toDelete, true).catch(err => {
+                    console.error(`[ANTI-SPAM ERROR] BulkDelete failed in #${channel.name}:`, err.message);
+                });
 
                 // Send notification embed if permissions allow
                 if (botPermissions.has([PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks])) {
                     const embed = new EmbedBuilder()
                         .setColor(0xED4245)
                         .setTitle('Spam Protection Triggered')
-                        .setDescription(`Messages from <@${user.id}> were removed due to multi-channel image spam.`)
+                        .setDescription(`Messages from **${user.tag}** (\`${user.id}\`) were removed due to multi-channel image spam.`)
                         .setTimestamp();
 
-                    await channel.send({ embeds: [embed] }).catch(() => null);
+                    await channel.send({ embeds: [embed] }).catch(err => {
+                        console.error(`[ANTI-SPAM ERROR] Could not send embed in #${channel.name}:`, err.message);
+                    });
+                } else {
+                    console.log(`[DEBUG PERMISSIONS] Missing 'Send Messages' or 'Embed Links' in channel #${channel.name}.`);
                 }
             }
         } catch (error) {
@@ -100,10 +119,9 @@ async function checkImageSpam(message) {
                     await member.kick('Triggered Image Spam Protection (Multi-channel flood).');
                     console.log(`[ANTI-SPAM] User ${message.author.tag} (${userId}) was kicked from ${message.guild.name}.`);
                 } else {
-                    console.log(`[SKIP ANTI-SPAM] User ${message.author.tag} (${userId}) can't be kicked in ${message.guild.name}.`);
+                    console.log(`[SKIP ANTI-SPAM] User ${message.author.tag} (${userId}) can't be kicked in ${message.guild.name} (Check role hierarchy or server ownership).`);
                 }
 
-                // Pass the full author object to generate the embed correctly
                 await purgeUserMessages(message.guild, message.author);
             } catch (error) {
                 console.error(`[ANTI-SPAM ERROR] Failed action on ${message.author.tag} in ${message.guild.name}:`, error);

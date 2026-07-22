@@ -57,6 +57,23 @@ To boot up Argos, simply run:
    node run start
    ```
 
+## Docker Compose
+
+To run Argos using Docker Compose:
+
+1. Make sure you have a `.env` file with your `TOKEN` and `CLIENT_ID` in the project root.
+2. Run:
+   ```bash
+   docker compose up -d
+   ```
+
+This will build the image, start the bot, and persist the SQLite database in `./data/honeypots.db`.
+
+Useful commands:
+- `docker compose logs -f` — tail logs.
+- `docker compose down` — stop the bot.
+- `docker compose up -d --build` — rebuild after code changes.
+
 ## Usage
 1. Invite Argos to your Discord server.
 2. Ensure the bot has the following permissions: Ban Members, View Channels, and Read/Send Messages.
