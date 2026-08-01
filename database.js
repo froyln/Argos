@@ -22,6 +22,14 @@ db.prepare(`
     )
 `).run();
 
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS image_spam_settings (
+        guild_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        announce INTEGER NOT NULL DEFAULT 1
+    )
+`).run();
+
 // Your inmutable audit log table
 db.prepare(`
     CREATE TABLE IF NOT EXISTS Bans (
@@ -79,6 +87,18 @@ const getAllServers = db.prepare(`
 
 const deleteServer = db.prepare(`
     DELETE FROM servers WHERE guild_id = ?
+`);
+
+const upsertImageSpamSettings = db.prepare(`
+    INSERT INTO image_spam_settings (guild_id, enabled, announce)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id) DO UPDATE SET
+        enabled = excluded.enabled,
+        announce = excluded.announce
+`);
+
+const getImageSpamSettingsStmt = db.prepare(`
+    SELECT enabled, announce FROM image_spam_settings WHERE guild_id = ?
 `);
 
 function addHoneypot(guildId, channelId, userId) {
@@ -164,6 +184,15 @@ function checkAdmin(userId){
     return true;
 }
 
+function getImageSpamSettings(guildId) {
+    return getImageSpamSettingsStmt.get(guildId) || { enabled: 1, announce: 1 };
+}
+
+function setImageSpamSettings(guildId, enabled, announce) {
+    upsertImageSpamSettings.run(guildId, enabled ? 1 : 0, announce ? 1 : 0);
+    return true;
+}
+
 module.exports = {
     addHoneypot,
     updateHoneypotMessage,
@@ -173,5 +202,7 @@ module.exports = {
     checkHoneypotChannelWithGuildId,
     getAllRegisteredServers,
     removeHoneypot,
-    checkAdmin
+    checkAdmin,
+    getImageSpamSettings,
+    setImageSpamSettings
 };

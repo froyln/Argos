@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const { checkHoneypotChannelWithGuildId, registerBan, getAllRegisteredServers } = require('../database'); 
+const { checkHoneypotChannelWithGuildId, registerBan, getAllRegisteredServers, getImageSpamSettings } = require('../database'); 
 const { checkImageSpam } = require('../utils/ImageSpam');
 
 module.exports = {
@@ -41,6 +41,9 @@ module.exports = {
         }
 
         // check image spam
-        await checkImageSpam(message);
+        const imageSpamSettings = getImageSpamSettings(message.guild.id);
+        if (imageSpamSettings.enabled) {
+            await checkImageSpam(message, imageSpamSettings);
+        }
     },
 };
