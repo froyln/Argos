@@ -13,6 +13,12 @@ db.prepare(`
     )
 `).run();
 
+// Add per-server honeypot action (kick default) to existing databases
+const serverColumns = db.prepare(`PRAGMA table_info(servers)`).all();
+if (!serverColumns.some(col => col.name === 'action')) {
+    db.prepare(`ALTER TABLE servers ADD COLUMN action TEXT NOT NULL DEFAULT 'kick'`).run();
+}
+
 db.prepare(`
     CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY, 
@@ -78,11 +84,15 @@ const checkAdminStatus = db.prepare(`
 `);
 
 const checkHoneypotChannel = db.prepare(`
-    SELECT channel_id, message_id FROM servers WHERE guild_id = ?
+    SELECT channel_id, message_id, action FROM servers WHERE guild_id = ?
 `);
 
 const getAllServers = db.prepare(`
-    SELECT guild_id FROM servers
+    SELECT guild_id, action FROM servers
+`);
+
+const updateHoneypotActionStmt = db.prepare(`
+    UPDATE servers SET action = ? WHERE guild_id = ?
 `);
 
 const deleteServer = db.prepare(`
@@ -165,6 +175,21 @@ function getAllRegisteredServers(){
     return getAllServers.all();
 }
 
+function updateHoneypotAction(guildId, action, userId) {
+    if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
+        console.log(`[WARNING] Attempted to change honeypot action by a non-admin user: ${userId}.`);
+        return false;
+    }
+
+    if (!checkHoneypotChannel.get(guildId)) {
+        console.log(`[WARNING] Attempted to set a honeypot action for a guild without a honeypot channel: ${guildId}. Action aborted.`);
+        return false;
+    }
+
+    updateHoneypotActionStmt.run(action === 'ban' ? 'ban' : 'kick', guildId);
+    return true;
+}
+
 function removeHoneypot(guildId, userId) {
     if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
         console.log(`[WARNING] Attempted to delete a honeypot by a non-admin user: ${userId}.`);
@@ -204,5 +229,6 @@ module.exports = {
     removeHoneypot,
     checkAdmin,
     getImageSpamSettings,
-    setImageSpamSettings
+    setImageSpamSettings,
+    updateHoneypotAction
 };

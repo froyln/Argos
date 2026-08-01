@@ -16,8 +16,8 @@ function getAttachmentSignatures(attachments) {
 /**
  * Delete recent messages from the user across all channels and send a notification embed.
  */
-async function purgeUserMessages(guild, user, announce) {
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+async function purgeUserMessages(guild, user, announce, windowMs = 30 * 60 * 1000) {
+    const cutoff = Date.now() - windowMs;
     const textChannels = guild.channels.cache.filter(c => c.isTextBased());
 
     // Safely get bot member to avoid cache misses
@@ -42,7 +42,7 @@ async function purgeUserMessages(guild, user, announce) {
             if (!messages) continue;
 
             const toDelete = messages.filter(
-                msg => msg.author.id === user.id && msg.createdTimestamp >= thirtyMinutesAgo
+                msg => msg.author.id === user.id && msg.createdTimestamp >= cutoff
             );
 
             if (toDelete.size > 0) {
@@ -135,4 +135,4 @@ async function checkImageSpam(message, settings) {
     }
 }
 
-module.exports = { checkImageSpam };
+module.exports = { checkImageSpam, purgeUserMessages };

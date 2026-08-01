@@ -1,6 +1,6 @@
 const { Events } = require('discord.js');
 const { checkHoneypotChannelWithGuildId, registerBan, getAllRegisteredServers, getImageSpamSettings } = require('../database'); 
-const { checkImageSpam } = require('../utils/ImageSpam');
+const { checkImageSpam, purgeUserMessages } = require('../utils/ImageSpam');
 
 module.exports = {
     name: Events.MessageCreate,
@@ -24,18 +24,28 @@ module.exports = {
                         const guild = await message.client.guilds.fetch(server.guild_id).catch(() => null);
                         if (!guild) continue;
 
-                        await guild.members.ban(message.author.id, {
-                            reason: 'Triggered the honeypot.',
-                            deleteMessageSeconds: 86400
-                        });
-
-                        console.log(`[HONEYPOT] User ${message.author.tag} (${message.author.id}) got banned in ${guild.name}.`);
+                        if (server.action === 'ban') {
+                            await guild.members.ban(message.author.id, {
+                                reason: 'Triggered the honeypot.',
+                                deleteMessageSeconds: 86400
+                            });
+                            console.log(`[HONEYPOT] User ${message.author.tag} (${message.author.id}) got banned in ${guild.name}.`);
+                        } else {
+                            const member = await guild.members.fetch(message.author.id).catch(() => null);
+                            if (member?.kickable) {
+                                await member.kick('Triggered the honeypot.');
+                                await purgeUserMessages(guild, message.author, false, 24 * 60 * 60 * 1000);
+                                console.log(`[HONEYPOT] User ${message.author.tag} (${message.author.id}) got kicked in ${guild.name}.`);
+                            } else {
+                                console.log(`[SKIP] User ${message.author.tag} (${message.author.id}) can't be kicked in server ID: ${server.guild_id}.`);
+                            }
+                        }
                     } catch {
-                        console.log(`[SKIP] User ${message.author.tag} (${message.author.id}) can't be banned in server ID: ${server.guild_id}.`);
+                        console.log(`[SKIP] User ${message.author.tag} (${message.author.id}) can't be actioned in server ID: ${server.guild_id}.`);
                     }
                 }
             } catch (error) {
-                console.error(`[ERROR] Failed ban on ${message.author.tag} in ${message.guild.name}:`, error);
+                console.error(`[ERROR] Failed honeypot action on ${message.author.tag} in ${message.guild.name}:`, error);
             }
             return; 
         }

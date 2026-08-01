@@ -16,11 +16,11 @@ Anti-spam/anti-raider Discord bot (honeypot). Node.js 18+, CommonJS, discord.js 
 - `index.js` — entry point. Loads every `.js` in `commands/` (needs `data` + `execute`) and `events/` (needs `name` + `execute`, `once` flag honored). Logs in.
 - `deploy_commands.js` — loads commands, PUTs them to `applicationCommands` (global scope).
 - `database.js` — sole DB access layer; all prepared statements + wrapper functions. Synchronous better-sqlite3.
-- `events/messageCreate.js` — core logic: messages in the configured honeypot channel → delete, log ban, ban the author in **all** registered servers. Any other message → image-spam check (only if enabled in `image_spam_settings`).
+- `events/messageCreate.js` — core logic: messages in the configured honeypot channel → delete, log ban, then per target server run its configured action (`ban` → ban + delete 24h of messages, default `kick` → kick + purge 24h of messages) in **all** registered servers. Any other message → image-spam check (only if enabled in `image_spam_settings`).
 - `utils/ImageSpam.js` — in-memory detector: same image signature (size+name) across ≥3 channels within 30s → kick + purge last 30 min of messages. Notification embed can be disabled per server. Cache is a module-level `Map`, lost on restart.
 
 ## Database (SQLite)
-- `servers` — `guild_id` PK, `channel_id`, `message_json`, `message_id` (honeypot config + last posted bait message)
+- `servers` — `guild_id` PK, `channel_id`, `message_json`, `message_id`, `action` (honeypot config + last posted bait message + `ban`/`kick`, default `kick`; column added via ALTER TABLE migration)
 - `users` — `user_id` PK, `username`, `banned_status`, `isAdmin`
 - `image_spam_settings` — `guild_id` PK, `enabled`, `announce` (both default 1; missing row = both ON)
 - `Bans` — immutable audit log (`guild_id`, `user_id`, `username`, `banned_at`). Never deleted.
@@ -32,6 +32,7 @@ Anti-spam/anti-raider Discord bot (honeypot). Node.js 18+, CommonJS, discord.js 
 | `honeypot_message` | Modal → message payload (raw text or JSON object e.g. `{"content": "...", "embeds": []}`). Sends/edits the bait message on Discord, stores it. |
 | `honeypot_delete` | Modal → type "yes" to confirm removal. |
 | `honeypot_unban <user_id>` | Global unban: removes ban from every registered server + flips `banned_status` to 0 (keeps `Bans` history). |
+| `honeypot_action` | Set the honeypot action for the server (`ban` or `kick`, default `kick`). No arg = show current. Admin-only. |
 | `imagespam` | Toggle image spam protection (`enabled`) and its notification embed (`announce`). No args = show current status. Admin-only. |
 
 ## Conventions & gotchas
