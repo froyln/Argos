@@ -2,7 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-require('dotenv').config();
+const loadCommands = require('./loadCommands');
 
 // Get the token from the .env file
 const token = process.env.DISCORD_TOKEN;
@@ -15,21 +15,10 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 // It makes some properties non-nullable.
 
 // Load commamnd handlers from the 'commands' directory
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
 client.commands = new Collection();
 
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    // Set a new item in the Collection with the key as the command name and the value as the exported module
-    if ('data' in command && 'execute' in command) {
-        client.commands.set(command.data.name, command);
-        console.log(`[INFO] Loaded command: ${command.data.name}`);
-    } else {
-        console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-    }
+for (const command of loadCommands()) {
+    client.commands.set(command.data.name, command);
 }
 
 // Load event handlers from the 'events' directory

@@ -86,8 +86,6 @@ Useful commands:
 
 [discord.js](https://discord.js.org/)
 
-[dotenv](https://www.npmjs.com/package/dotenv)
-
 ## License
 
 [MIT](LICENSE) © froyln

@@ -13,6 +13,12 @@ db.prepare(`
     )
 `).run();
 
+// Add per-server honeypot action (kick default) to existing databases
+const serverColumns = db.prepare(`PRAGMA table_info(servers)`).all();
+if (!serverColumns.some(col => col.name === 'action')) {
+    db.prepare(`ALTER TABLE servers ADD COLUMN action TEXT NOT NULL DEFAULT 'kick'`).run();
+}
+
 db.prepare(`
     CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY, 
@@ -22,10 +28,18 @@ db.prepare(`
     )
 `).run();
 
+db.prepare(`
+    CREATE TABLE IF NOT EXISTS image_spam_settings (
+        guild_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        announce INTEGER NOT NULL DEFAULT 1
+    )
+`).run();
+
 // Your inmutable audit log table
 db.prepare(`
     CREATE TABLE IF NOT EXISTS Bans (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         guild_id TEXT NOT NULL, 
         user_id TEXT NOT NULL,
         username TEXT NOT NULL,
@@ -61,24 +75,36 @@ const updateUserUnban = db.prepare(`
     UPDATE users SET banned_status = 0 WHERE user_id = ?
 `);
 
-const checkBanStatus = db.prepare(`
-    SELECT banned_status FROM users WHERE user_id = ?
-`);
-
 const checkAdminStatus = db.prepare(`
     SELECT isAdmin FROM users WHERE user_id = ?
 `);
 
 const checkHoneypotChannel = db.prepare(`
-    SELECT channel_id, message_id FROM servers WHERE guild_id = ?
+    SELECT channel_id, message_id, action FROM servers WHERE guild_id = ?
 `);
 
 const getAllServers = db.prepare(`
-    SELECT guild_id FROM servers
+    SELECT guild_id, action FROM servers
+`);
+
+const updateHoneypotActionStmt = db.prepare(`
+    UPDATE servers SET action = ? WHERE guild_id = ?
 `);
 
 const deleteServer = db.prepare(`
     DELETE FROM servers WHERE guild_id = ?
+`);
+
+const upsertImageSpamSettings = db.prepare(`
+    INSERT INTO image_spam_settings (guild_id, enabled, announce)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id) DO UPDATE SET
+        enabled = excluded.enabled,
+        announce = excluded.announce
+`);
+
+const getImageSpamSettingsStmt = db.prepare(`
+    SELECT enabled, announce FROM image_spam_settings WHERE guild_id = ?
 `);
 
 function addHoneypot(guildId, channelId, userId) {
@@ -92,20 +118,8 @@ function addHoneypot(guildId, channelId, userId) {
     return true;
 }
 
-function updateHoneypotMessage(guildId, messageJson, messageId, userId) {
-    if (!checkHoneypotChannel.get(guildId)) {
-        console.log(`[WARNING] Attempted to set a honeypot message for a guild without a honeypot channel: ${guildId}. Action aborted.`);
-        return false;
-    }
-
-    // AHORA el userId sí existe y esto no lanzará error
-    if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
-        console.log(`[WARNING] Attempted to set a honeypot message by a non-admin user: ${userId}. Action aborted.`);
-        return false;
-    }
-
+function updateHoneypotMessage(guildId, messageJson, messageId) {
     insertServerMessage.run(messageJson, messageId ? String(messageId) : null, guildId);
-    return true;
 }
 
 function registerBan(guildId, userId, username) {
@@ -122,45 +136,34 @@ function registerBan(guildId, userId, username) {
     return true; 
 }
 
-function removeBan(userId, userIdBanned) {
-    if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
-        console.log(`[WARNING] Attempted to unban a user by a non-admin user: ${userId}. Action aborted.`);
-        return false;
-    }
-
+function removeBan(userIdBanned) {
     // Keeps the logs in 'Bans' intact, only flips the current status to Unbanned (0)
     updateUserUnban.run(userIdBanned);
 }
 
-function isBanned(userId) {
-    const result = checkBanStatus.get(userId);
-    return result ? result.banned_status === 1 : false;
+function updateHoneypotAction(guildId, action) {
+    updateHoneypotActionStmt.run(action === 'ban' ? 'ban' : 'kick', guildId);
 }
 
-function checkHoneypotChannelWithGuildId(guildId) {
-    return checkHoneypotChannel.get(guildId);
-}
-
-function getAllRegisteredServers(){
-    return getAllServers.all();
-}
-
-function removeHoneypot(guildId, userId) {
-    if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
-        console.log(`[WARNING] Attempted to delete a honeypot by a non-admin user: ${userId}.`);
-        return false;
-    }
-
-    const info = deleteServer.run(guildId);
-    return info.changes > 0; 
+function removeHoneypot(guildId) {
+    return deleteServer.run(guildId).changes > 0;
 }
 
 function checkAdmin(userId){
     if (checkAdminStatus.get(userId)?.isAdmin !== 1) {
-        console.log(`[WARNING] Attempted to delete a honeypot by a non-admin user: ${userId}.`);
+        console.log(`[WARNING] Admin-only operation attempted by non-admin user: ${userId}.`);
         return false;
     }
     
+    return true;
+}
+
+function getImageSpamSettings(guildId) {
+    return getImageSpamSettingsStmt.get(guildId) || { enabled: 1, announce: 1 };
+}
+
+function setImageSpamSettings(guildId, enabled, announce) {
+    upsertImageSpamSettings.run(guildId, enabled ? 1 : 0, announce ? 1 : 0);
     return true;
 }
 
@@ -169,9 +172,11 @@ module.exports = {
     updateHoneypotMessage,
     registerBan,
     removeBan,
-    isBanned,
-    checkHoneypotChannelWithGuildId,
-    getAllRegisteredServers,
+    checkHoneypotChannel,
+    getAllServers,
     removeHoneypot,
-    checkAdmin
+    checkAdmin,
+    getImageSpamSettings,
+    setImageSpamSettings,
+    updateHoneypotAction
 };

@@ -41,7 +41,6 @@ module.exports = {
 
             const userInput = modalSubmit.fields.getTextInputValue('confirmationInput').toLowerCase().trim();
             const guildId = modalSubmit.guildId;
-            const userId = modalSubmit.user.id;
 
             if (userInput !== 'yes') {
                 await modalSubmit.reply({ 
@@ -51,7 +50,7 @@ module.exports = {
                 return;
             }
 
-            const dbSuccess = removeHoneypot(guildId, userId);
+            const dbSuccess = removeHoneypot(guildId);
             
             if (dbSuccess) {
                 await modalSubmit.reply({ 

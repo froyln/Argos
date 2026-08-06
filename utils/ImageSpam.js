@@ -16,8 +16,8 @@ function getAttachmentSignatures(attachments) {
 /**
  * Delete recent messages from the user across all channels and send a notification embed.
  */
-async function purgeUserMessages(guild, user) {
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+async function purgeUserMessages(guild, user, announce, windowMs = 30 * 60 * 1000) {
+    const cutoff = Date.now() - windowMs;
     const textChannels = guild.channels.cache.filter(c => c.isTextBased());
 
     // Safely get bot member to avoid cache misses
@@ -42,7 +42,7 @@ async function purgeUserMessages(guild, user) {
             if (!messages) continue;
 
             const toDelete = messages.filter(
-                msg => msg.author.id === user.id && msg.createdTimestamp >= thirtyMinutesAgo
+                msg => msg.author.id === user.id && msg.createdTimestamp >= cutoff
             );
 
             if (toDelete.size > 0) {
@@ -51,7 +51,7 @@ async function purgeUserMessages(guild, user) {
                 });
 
                 // Send notification embed if permissions allow
-                if (botPermissions.has([PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks])) {
+                if (announce && botPermissions.has([PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks])) {
                     const embed = new EmbedBuilder()
                         .setColor(0xED4245)
                         .setTitle('Spam Protection Triggered')
@@ -61,6 +61,8 @@ async function purgeUserMessages(guild, user) {
                     await channel.send({ embeds: [embed] }).catch(err => {
                         console.error(`[ANTI-SPAM ERROR] Could not send embed in #${channel.name}:`, err.message);
                     });
+                } else if (!announce) {
+                    console.log(`[DEBUG PERMISSIONS] Notification suppressed for channel #${channel.name} (announce off).`);
                 } else {
                     console.log(`[DEBUG PERMISSIONS] Missing 'Send Messages' or 'Embed Links' in channel #${channel.name}.`);
                 }
@@ -74,7 +76,7 @@ async function purgeUserMessages(guild, user) {
 /**
  * Check if the same image is sent across 3 or more channels within 30 seconds.
  */
-async function checkImageSpam(message) {
+async function checkImageSpam(message, settings) {
     if (message.attachments.size === 0) return;
     const signatures = getAttachmentSignatures(message.attachments);
     if (signatures.length === 0) return;
@@ -122,7 +124,7 @@ async function checkImageSpam(message) {
                     console.log(`[SKIP ANTI-SPAM] User ${message.author.tag} (${userId}) can't be kicked in ${message.guild.name} (Check role hierarchy or server ownership).`);
                 }
 
-                await purgeUserMessages(message.guild, message.author);
+                await purgeUserMessages(message.guild, message.author, settings.announce);
             } catch (error) {
                 console.error(`[ANTI-SPAM ERROR] Failed action on ${message.author.tag} in ${message.guild.name}:`, error);
             } finally {
@@ -133,4 +135,4 @@ async function checkImageSpam(message) {
     }
 }
 
-module.exports = { checkImageSpam };
+module.exports = { checkImageSpam, purgeUserMessages };
