@@ -1,4 +1,4 @@
-const { removeBan, getAllRegisteredServers, checkAdmin } = require('../database');
+const { removeBan, getAllServers, checkAdmin } = require('../database');
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
@@ -12,7 +12,6 @@ module.exports = {
                 
     async execute(interaction) {
         const userIdBanned = interaction.options.getString('user_id');
-        const executorId = interaction.user.id;
 
         if (!checkAdmin(interaction.user.id)){
             console.log(`[WARNING] Attempted to unban a user by a non-admin user: ${interaction.user.id}`)
@@ -23,7 +22,7 @@ module.exports = {
             return; 
         }
 
-        const servers = getAllRegisteredServers();
+        const servers = getAllServers.all();
         
         let unbannedCount = 0;
         let failedCount = 0;
@@ -42,7 +41,7 @@ module.exports = {
         }
 
         try {
-            removeBan(executorId, userIdBanned);
+            removeBan(userIdBanned);
         } catch (dbError) {
             console.error('[DATABASE ERROR] Failed to update unban status:', dbError);
             return interaction.editReply({

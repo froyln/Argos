@@ -1,4 +1,4 @@
-const { checkAdmin, checkHoneypotChannelWithGuildId, updateHoneypotAction } = require('../database');
+const { checkAdmin, checkHoneypotChannel, updateHoneypotAction } = require('../database');
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 module.exports = {
@@ -23,7 +23,7 @@ module.exports = {
             return;
         }
 
-        const honeypot = checkHoneypotChannelWithGuildId(interaction.guildId);
+        const honeypot = checkHoneypotChannel.get(interaction.guildId);
         if (!honeypot) {
             await interaction.reply({
                 content: 'No honeypot is configured for this server. Set one with /honeypot_create first.',
@@ -41,7 +41,7 @@ module.exports = {
             return;
         }
 
-        updateHoneypotAction(interaction.guildId, action, interaction.user.id);
+        updateHoneypotAction(interaction.guildId, action);
         await interaction.reply({
             content: `Honeypot action set to **${action}**.`,
             flags: MessageFlags.Ephemeral

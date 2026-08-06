@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const { checkHoneypotChannelWithGuildId, registerBan, getAllRegisteredServers, getImageSpamSettings } = require('../database'); 
+const { checkHoneypotChannel, registerBan, getAllServers, getImageSpamSettings } = require('../database'); 
 const { checkImageSpam, purgeUserMessages } = require('../utils/ImageSpam');
 
 module.exports = {
@@ -8,7 +8,7 @@ module.exports = {
         if (message.author.bot) return;
         if (!message.guild) return;
 
-        const honeypotData = checkHoneypotChannelWithGuildId(message.guild.id);
+        const honeypotData = checkHoneypotChannel.get(message.guild.id);
 
         // honeypot channel's
         if (honeypotData && honeypotData.channel_id === message.channel.id) {
@@ -17,7 +17,7 @@ module.exports = {
 
                 registerBan(message.guild.id, message.author.id, message.author.username);
 
-                const servers = getAllRegisteredServers();
+                const servers = getAllServers.all();
 
                 for (const server of servers) {
                     try {

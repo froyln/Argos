@@ -1,8 +1,8 @@
-const { updateHoneypotMessage, checkHoneypotChannelWithGuildId, checkAdmin } = require('../database');
+const { updateHoneypotMessage, checkHoneypotChannel, checkAdmin } = require('../database');
 const { SlashCommandBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 
 async function handleDiscordHoneypotMessage(client, guildId, messageContent) {
-    const honeypotChannelData = checkHoneypotChannelWithGuildId(guildId);
+    const honeypotChannelData = checkHoneypotChannel.get(guildId);
     
     if (!honeypotChannelData) {
         console.log(`[ERROR] No honeypot channel found for guild ${guildId}.`);
@@ -88,18 +88,12 @@ module.exports = {
 
             const messageContent = modalSubmit.fields.getTextInputValue('honeypotMessageInput');
             const guildId = modalSubmit.guildId;
-            const userId = modalSubmit.user.id;
 
             const discordResult = await handleDiscordHoneypotMessage(modalSubmit.client, guildId, messageContent);
             
             if (discordResult.success) {
-                const dbSuccess = updateHoneypotMessage(guildId, messageContent, discordResult.messageId, userId);
-                
-                if (dbSuccess) {
-                    await modalSubmit.reply({ content: 'Honeypot message has been correctly updated/sent and saved.', flags: MessageFlags.Ephemeral });
-                } else {
-                    await modalSubmit.reply({ content: 'Message updated on Discord, but database failed (Permission issue?).', flags: MessageFlags.Ephemeral });
-                }
+                updateHoneypotMessage(guildId, messageContent, discordResult.messageId);
+                await modalSubmit.reply({ content: 'Honeypot message has been correctly updated/sent and saved.', flags: MessageFlags.Ephemeral });
             } else {
                 await modalSubmit.reply({ content: 'Failed to access channel or send the message on Discord.', flags: MessageFlags.Ephemeral });
             }

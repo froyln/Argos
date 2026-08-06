@@ -1,6 +1,6 @@
 # Argos — AGENTS.md
 
-Anti-spam/anti-raider Discord bot (honeypot). Node.js 18+, CommonJS, discord.js v14, better-sqlite3 (synchronous), dotenv. No test or lint tooling exists.
+Anti-spam/anti-raider Discord bot (honeypot). Node.js 20.6+ (uses `--env-file`), CommonJS, discord.js v14, better-sqlite3 (synchronous). No test or lint tooling exists.
 
 ## Commands
 - `npm start` — run `index.js` (bot)
